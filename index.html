@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<meta charset="utf-8"/>
+<link rel="stylesheet" href="http://netdna.bootstrapcdn.com/bootstrap/3.1.0/css/bootstrap.min.css"/>
+<style>
+
+svg {
+  font: 15px sans-serif;
+}
+
+.background path {
+  fill: none;
+  stroke: #ddd;
+  shape-rendering: crispEdges;
+}
+
+.foreground path {
+  opacity: 0.3;
+  fill: none;
+  stroke-width: 3;
+}
+
+.brush .extent {
+  fill-opacity: 0.3;
+  stroke: #fff;
+  shape-rendering: crispEdges;
+}
+
+.axis line,
+.axis path {
+  fill: none;
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+
+.axis text {
+  text-shadow: 0 1px 0 #fff, 1px 0 0 #fff, 0 -1px 0 #fff, -1px 0 0 #fff;
+  cursor: move;
+}
+
+.tooltip { 
+    position: absolute;     
+    text-align: center;     
+    width: 60px;          
+    height: 28px;         
+    padding: 2px;       
+    font: 30px sans-serif;    
+    border: 0px;    
+    border-radius: 8px;     
+    pointer-events: none; 
+    left: 50%;    
+}
+</style>
+<body>
+  <div class="row">
+    <div class ="col-sm-12" id="parallell"></div>
+  </div>
+
+  <div class ="row" id="here">
+    <div class ="col-sm-10" id="container" style="position: relative; width: 1000px; height: 460px;"></div>
+    <div class="col-sm-2" id ="svgContent" style="height: 460px"></div>
+  </div>
+<script src="//d3js.org/d3.v3.min.js"></script>
+<script type="text/javascript" src="data/topojson.min.js"></script>
+<script type="text/javascript" src="data/datamaps.world.hires.min.js"></script>
+<script src="http://code.jquery.com/jquery-1.8.2.js"></script>
+<script src="http://code.jquery.com/ui/1.9.0/jquery-ui.js"></script>
+<script src="jquery.csv.js"></script>
+<script>
+var color = d3.scale.category20();
+
+// !!!!!!!!!!!!!!!!!!!!!!!! VIEW 1 START !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+var margin = {top: 100, right: 10, bottom: 10, left: 10},
+    width = 1200 - margin.left - margin.right,
+    height = 500 - margin.top - margin.bottom; // 960 widht & 500 height
+
+var x = d3.scale.ordinal().rangePoints([0, width], 1),
+    y = {},
+    dragging = {};
+
+
+var formatTime = d3.time.format("%e %B");
+
+var newdiv = d3.select("#parallell").append("div") 
+    .attr("class", "tooltip")       
+    .style("opacity", 0);
+
+var line = d3.svg.line(),
+    axis = d3.svg.axis().orient("left"),
+    background,
+    foreground;
+
+var svg1 = d3.select("#parallell").append("svg")
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom)
+  .append("g")
+    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+d3.csv("data.csv", function(error, cars) {
+  
+  // Extract the list of dimensions and create a scale for each.
+  x.domain(dimensions = d3.keys(cars[0]).filter(function(d) {
+    //return d != "Country" && (y[d] = d3.scale.linear()
+    return d != "Country" && d != "Trust"  &&(y[d] = d3.scale.linear()
+        .domain(d3.extent(cars, function(p) { return +p[d]; }))
+        .range([height, 0]));
+  }));
+
+  // Add grey background lines for context.
+  background = svg1.append("g")
+      .attr("class", "background")
+    .selectAll("path")
+      .data(cars)
+    .enter().append("path")
+      .attr("d", path);
+
+  // Add blue foreground lines for focus.
+  foreground = svg1.append("g")
+      .attr("class", "foreground")
+    .selectAll("path")
+      .data(cars)
+    .enter().append("path")
+      .attr("d", path)
+      .style("stroke", function(d) { return color(d.Country); })
+      .on("mouseover", function(d) {
+            newdiv.style("opacity", .9);    
+            newdiv.html("Country: " + d.Country);
+            d3.select(this).style("opacity",2);
+            var countrydata = new Object();
+            countrydata[getCountryByName(d.Country)[0].Code] = color(d.Country);
+            map.updateChoropleth(countrydata);
+          })          
+        .on("mouseout", function(d) {   
+            newdiv.style("opacity", 0);
+            d3.select(this).style("opacity",0.5);
+            var countrydata = new Object();
+            countrydata[getCountryByName(d.Country)[0].Code] = '#EEEEEE';
+            map.updateChoropleth(countrydata);
+        });
+
+  // Add a group element for each dimension.
+  var g = svg1.selectAll(".dimension")
+      .data(dimensions)
+    .enter().append("g")
+      .attr("class", "dimension")
+      .attr("transform", function(d) { return "translate(" + x(d) + ")"; })
+      .call(d3.behavior.drag()
+        .origin(function(d) { return {x: x(d)}; })
+        .on("dragstart", function(d) {
+          dragging[d] = x(d);
+          background.attr("visibility", "hidden");
+        })
+        .on("drag", function(d) {
+          dragging[d] = Math.min(width, Math.max(0, d3.event.x));
+          foreground.attr("d", path);
+          dimensions.sort(function(a, b) { return position(a) - position(b); });
+          x.domain(dimensions);
+          g.attr("transform", function(d) { return "translate(" + position(d) + ")"; })
+        })
+        .on("dragend", function(d) {
+          delete dragging[d];
+          transition(d3.select(this)).attr("transform", "translate(" + x(d) + ")");
+          transition(foreground).attr("d", path);
+          background
+              .attr("d", path)
+            .transition()
+              .delay(500)
+              .duration(0)
+              .attr("visibility", null);
+        }));
+
+  // Add an axis and title.
+  g.append("g")
+      .attr("class", "axis")
+      .each(function(d) { d3.select(this).call(axis.scale(y[d])); })
+    .append("text")
+      .style("text-anchor", "middle")
+      .attr("y", -9)
+      .text(function(d) { return d; });
+
+  // Add and store a brush for each axis.
+  g.append("g")
+      .attr("class", "brush")
+      .each(function(d) {
+        d3.select(this).call(y[d].brush = d3.svg.brush().y(y[d]).on("brushstart", brushstart).on("brush", brush));
+      })
+    .selectAll("rect")
+      .attr("x", -8)
+      .attr("width", 16);
+});
+
+function position(d) {
+  var v = dragging[d];
+  return v == null ? x(d) : v;
+}
+
+function transition(g) {
+  return g.transition().duration(500);
+}
+
+// Returns the path for a given data point.
+function path(d) {
+  return line(dimensions.map(function(p) { return [position(p), y[p](d[p])]; }));
+}
+
+function brushstart() {
+  d3.event.sourceEvent.stopPropagation();
+}
+
+// Handles a brush event, toggling the display of foreground lines.
+function brush() {
+  var actives = dimensions.filter(function(p) { return !y[p].brush.empty(); }),
+      extents = actives.map(function(p) { return y[p].brush.extent(); });
+  foreground.style("display", function(d) {
+    return actives.every(function(p, i) {
+      return extents[i][0] <= d[p] && d[p] <= extents[i][1];
+    }) ? null : "none";
+  });
+}
+
+// !!!!!!!!!!!!!!!!!!!!!!!! VIEW 1 END   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// !!!!!!!!!!!!!!!!!!!!!!!! VIEW 2 START !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+function getCountryByName(name) {
+  return codedata.filter(
+      function(data){return data.Name == name}
+  );
+}
+
+function myFunc(data) {
+    codedata = data;
+}
+
+d3.csv('countrycodes.csv', function (data) {
+    var csv = data;
+    myFunc(csv);
+});
+
+var map = new Datamap({
+  element: document.getElementById("container"),
+  fills: {
+    defaultFill: '#EEEEEE' // Any hex, color name or rgb/rgba value
+  },
+  setProjection: function(element) {
+    var projection = d3.geo.mercator()
+    .scale(150);
+    var path = d3.geo.path()
+    .projection(projection);
+
+    return {path: path, projection: projection};
+  },
+  geographyConfig: {
+    popupTemplate: function(geo, data) {
+        newdata = getMoneyData(geo.properties.name);
+        document.getElementById("svgContent").remove();
+        $("#container").after('<div class="col-sm-2" id ="svgContent" style="height: 460px"></div>');
+        render();
+        newsvg.selectAll(".arc")
+        .data(pie(newdata))
+      return '<div class="hoverinfo">' + geography.properties.name
+    }
+  }
+});
+
+function getMoneyData(name){
+  var datas =  moneydata.filter(function(data){return data.Country == name});
+  if (!datas.length) {return false;}
+  var values = [];
+  for (items in datas[0]){
+    values.push(datas[0][items]);
+  }
+  newdata = [{"age":"Poorest 10 %","population":values[1]},
+            {"age":"Poorest 20 %","population":values[2]},
+            {"age":"2nd Poorest 20%","population":values[3]},
+            {"age":"Middle 20%","population":values[4]},
+            {"age":"2nd Richest 20%","population":values[5]},          
+      {"age":"Richest 20%","population":values[6]},
+            {"age":"Richest 10%","population":values[7]}];
+  return newdata;
+
+}
+
+function myFunc2(data) {
+    moneydata = data;
+}
+
+d3.csv('money.csv', function (data) {
+    var csv = data;
+    myFunc2(csv);
+});
+
+/////////////////////////////// VIEW 2 END //////////////////////////////
+/////////////////////////////// VIEW 3 START ////////////////////////////
+
+var newdata = [{"age":"Poorest 10 %","population":4},{"age":"Poorest 20 %","population":8},{"age":"2nd Poorest 20%","population":11},{"age":"Middle 20%","population":13},{"age":"2nd Richest 20%","population":20},{"age":"Richest 20%","population":45},{"age":"Richest 10%","population":31}];
+
+var categries = ["Poorest 10%", "Poorest 20%","2nd Poorest 20%","Middle 20%","2nd Richest 20%","Richest 20%","Richest 10%"];
+
+var margin = {top:40,left:40,right:40,bottom:40};
+newwidth = 900;
+newheight = 900;
+radius = Math.min(newwidth-100,newheight-100)/2;
+var color = d3.scale.category10();
+var arc = d3.svg.arc()  
+         .outerRadius(radius -230)
+         .innerRadius(radius - 50)
+     .cornerRadius(20);
+var arcOver = d3.svg.arc()  
+.outerRadius(radius +50)
+.innerRadius(0);
+
+var a=width/2 -40;
+var b=height;
+function render(){
+var newsvg = d3.select("#svgContent").append("svg")
+          .attr("viewBox", "0 0 " + newwidth + " " + newheight)
+    .attr("preserveAspectRatio", "xMidYMid meet")
+          .append("g")
+          .attr("transform","translate("+a+","+b+")");
+      div = d3.select("body")
+.append("div") 
+.attr("class", "tooltip");
+
+var pie = d3.layout.pie()
+          .sort(null)
+          .value(function(d){
+            return d.population;})
+      .padAngle(.02);
+
+ newg = newsvg.selectAll(".arc")
+        .data(pie(newdata))
+        .enter()
+        .append("g")
+        .attr("class","arc") 
+         .on("mousemove",function(d){
+          var mouseVal = d3.mouse(this);
+          div.style("display","none");
+          div
+          .html(d.data.age +" has: </br>"+d.data.population +" % of the wealth.")
+            .style("left", (d3.event.pageX+12) + "px")
+            .style("top", (d3.event.pageY-10) + "px")
+            .style("opacity", 1)
+            .style("display","block");
+        })
+        .on("mouseout",function(){div.html(" ").style("display","none");});
+        
+        
+        
+    newg.append("path")
+    .attr("d",arc)
+    .style("fill",function(d){return color(d.data.age);})
+    .attr("d", arc);;
+    return true;
+}
+render();
+</script>
+</body>
