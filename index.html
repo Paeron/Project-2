@@ -57,7 +57,7 @@ svg {
 
   <div class ="row" id="here">
     <div class ="col-sm-10" id="container" style="position: relative; width: 1000px; height: 460px;"></div>
-    <div class="col-sm-2" id ="svgContent" style="height: 460px"></div>
+    <div class="col-sm-2" id ="svgContent" style="height: 230px"></div>
   </div>
 <script src="d3/d3.v3.js"></script>
 <script src="data/topojson.min.js"></script>
@@ -252,7 +252,7 @@ var map = new Datamap({
     popupTemplate: function(geo, data) {
         newdata = getMoneyData(geo.properties.name);
         document.getElementById("svgContent").remove();
-        $("#container").after('<div class="col-sm-2" id ="svgContent" style="height: 460px"></div>');
+        $("#container").after('<div class="col-sm-2" id ="svgContent" style="height: 230px"></div>');
         render();
         newsvg.selectAll(".arc")
         .data(pie(newdata))
