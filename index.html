@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <meta charset="utf-8"/>
-<link rel="stylesheet" href="http://netdna.bootstrapcdn.com/bootstrap/3.1.0/css/bootstrap.min.css"/>
+<link href="bootstrap.min.css" rel="stylesheet">
 <style>
 
 svg {
@@ -57,7 +57,7 @@ svg {
 
   <div class ="row" id="here">
     <div class ="col-sm-10" id="container" style="position: relative; width: 1000px; height: 460px;"></div>
-    <div class="col-sm-2" id ="svgContent" style="height: 230px"></div>
+    <div class="col-sm-2" id ="svgContent" style="height: 460px"></div>
   </div>
 <script src="d3/d3.v3.js"></script>
 <script src="data/topojson.min.js"></script>
@@ -296,8 +296,8 @@ var newdata = [{"age":"Poorest 10 %","population":4},{"age":"Poorest 20 %","popu
 var categries = ["Poorest 10%", "Poorest 20%","2nd Poorest 20%","Middle 20%","2nd Richest 20%","Richest 20%","Richest 10%"];
 
 var margin = {top:40,left:40,right:40,bottom:40};
-newwidth = 300;
-newheight = 300;
+newwidth = 900;
+newheight = 900;
 radius = Math.min(newwidth-100,newheight-100)/2;
 var color = d3.scale.category10();
 var arc = d3.svg.arc()  
